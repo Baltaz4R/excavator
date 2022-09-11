@@ -1,0 +1,11 @@
+# IDE config files.
+.vscode/
+__pycache__/
+
+# Environments.
+.env
+env/
+venv/
+
+# Test files.
+test.py
