@@ -33,7 +33,7 @@ class Button:
     def start(self, callback: object = None) -> None:
         self.callback = callback
 
-        RPi.GPIO.add_event_detect(self.pin, RPi.GPIO.FALLING, callback = self.run, bouncetime = 300)
+        RPi.GPIO.add_event_detect(self.pin, RPi.GPIO.RISING, callback = self.run, bouncetime = 300)
 
     def stop(self) -> None:
         self.__stop__ = True

@@ -14,19 +14,24 @@ class Window(QWidget):
     NUMBER_OF_DISPLAYS = 4
     NUMBER_OF_DIGITS = 4
 
+    __play_signal__ = QtCore.pyqtSignal()
+
     def __init__(self):
         super().__init__()
 
         self.setWindowTitle('AMPd')
-        self.setWindowIcon(QtGui.QIcon(os.path.dirname(__file__) + '/assets/icon.png'))
+        self.setWindowIcon(QtGui.QIcon(os.path.dirname(__file__) + '/assets/rotodyna.jpg'))
         self.setCursor(QtCore.Qt.BlankCursor)
-        self.setStyleSheet("background-color: rgb(180, 150, 50);")
+        self.setStyleSheet("background-color: white;") # rgb(180, 150, 50)
         self.setGeometry(0, 0, QtWidgets.QDesktopWidget().screenGeometry(-1).width(), QtWidgets.QDesktopWidget().screenGeometry(-1).height())
 
         self.showFullScreen()
         self.show()
 
+        self.__play_signal__.connect(self.__play__)
+
         outerLayout = QVBoxLayout()
+        moviesLayout = QGridLayout()
         displaysLayout = QGridLayout()
 
         # Init displays.
@@ -52,7 +57,26 @@ class Window(QWidget):
 
             display.show()
 
-        displaysLayout.setContentsMargins(0, 0, 0, int(height / 2))
+        displaysLayout.setContentsMargins(0, 0, 0, int(self.height() / 54))
+
+        # Init gif.
+        self.movies = [QLabel(), QLabel()]
+
+        self.movies[0].filename = None
+        self.movies[1].filename = None
+
+        self.movies[0].qmovie = None
+        self.movies[1].qmovie = None
+
+        self.movies[0].setMinimumWidth(int(self.width() / 2) - height)
+        self.movies[0].setMinimumHeight(int(16 * self.height() / 27))
+        self.movies[1].setMinimumWidth(int(self.width() / 2) - height)
+        self.movies[1].setMinimumHeight(int(16 * self.height() / 27))
+
+        moviesLayout.addWidget(self.movies[0], 0, 0, alignment = QtCore.Qt.AlignLeft)
+        moviesLayout.addWidget(self.movies[1], 0, 1, alignment = QtCore.Qt.AlignRight)
+
+        moviesLayout.setContentsMargins(int(height / 2), 0, int(height / 2), 0)
 
         # Init canvas.
         self.cursor = None
@@ -61,9 +85,10 @@ class Window(QWidget):
         self.figure.set_facecolor('none')
 
         self.canvas = matplotlib.backends.backend_qt5agg.FigureCanvasQTAgg(self.figure)
-        self.canvas.setMaximumHeight(int(self.height() / 5))
+        self.canvas.setMaximumHeight(2 * int(self.height() / 9))
 
         outerLayout.addWidget(self.canvas, alignment = QtCore.Qt.AlignTop)
+        outerLayout.addLayout(moviesLayout)
         outerLayout.addLayout(displaysLayout)
 
         self.setLayout(outerLayout)
@@ -103,10 +128,10 @@ class Window(QWidget):
         ax = self.figure.add_subplot()
 
         for zone in green_zones:
-            ax.axvspan(zone[0], zone[1], alpha = 0.5, color = 'green')
+            ax.axvspan(zone[0], zone[1], alpha = 0.5, color = 'green', lw = 0)
 
         for zone in red_zones:
-            ax.axvspan(zone[0], zone[1], alpha = 0.5, color = 'red')
+            ax.axvspan(zone[0], zone[1], alpha = 0.5, color = 'red', lw = 0)
 
         matplotlib.pyplot.xlim(min(green_zones + red_zones, key = lambda zone: zone[0])[0], max(green_zones + red_zones, key = lambda zone: zone[1])[1])
         matplotlib.pyplot.ylim(0, 2)
@@ -135,9 +160,43 @@ class Window(QWidget):
 
             time.sleep(0.05)
 
+    def __play__(self) -> None:
+        for movie in self.movies:
+            if movie.qmovie is not None:
+                movie.qmovie.stop()
+                del movie.qmovie
+                movie.qmovie = None
+
+            if movie.filename is None:
+                continue
+
+            movie.qmovie = QtGui.QMovie(movie.filename)
+
+            movie.qmovie.jumpToFrame(0)
+            size = movie.qmovie.currentImage().size()
+            size.scale(movie.width(), movie.height(), QtCore.Qt.KeepAspectRatio)
+            movie.qmovie.setScaledSize(size)
+
+            movie.qmovie.start()
+
+            movie.setMovie(movie.qmovie)
+
+    def play(self, filename: str, position: int) -> None:
+        self.movies[position].filename = filename
+
+        self.__play_signal__.emit()
+
     def clear(self) -> None:
         self.figure.clear()
         self.canvas.draw()
+
+        self.movies[0].filename = None
+        self.movies[1].filename = None
+
+        self.__play_signal__.emit()
+
+        self.movies[0].clear()
+        self.movies[1].clear()
 
     def set_on_display(self, index: int, number: float) -> None:
         self.displays[index].display(number)
@@ -148,6 +207,6 @@ if __name__ == '__main__':
     app = QApplication(sys.argv)
     window = Window()
 
-    window.plot(800, [[600, 742], [758, 801], [864, 910]], [[742, 758], [801, 864], [910, 1000]])
+    window.plot(800, [[716, 766], [799, 867], [903, 1000]], [[600, 716], [766, 799], [867, 903]])
 
     sys.exit(app.exec_())

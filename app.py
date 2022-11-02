@@ -39,13 +39,13 @@ DISPLAY3_DEC = 7
 START_PIN = 9
 START_LED = 22
 # Stop button.
-STOP_PIN = 11
+STOP_PIN = 5
 STOP_LED = 10
 # AMPd button.
 AMPD_PIN = 4
 AMPD_LED = 27
 # Shutdown button.
-SHUTDOWN_PIN = 5
+SHUTDOWN_PIN = 11
 # Warning led.
 WARNING_LED = 17
 
@@ -74,7 +74,7 @@ if __name__ == '__main__':
     start_button = Button(START_PIN, START_LED)
     stop_button = Button(STOP_PIN, STOP_LED)
     ampd_button = Button(AMPD_PIN, AMPD_LED)
-    shutdown_button = Button(SHUTDOWN_PIN)
+    # shutdown_button = Button(SHUTDOWN_PIN)
 
     warning_led = Led(WARNING_LED)
 
@@ -94,7 +94,7 @@ if __name__ == '__main__':
         start_button.exit()
         stop_button.exit()
         ampd_button.exit()
-        shutdown_button.exit()
+        # shutdown_button.exit()
 
         warning_led.exit()
 
@@ -112,28 +112,24 @@ if __name__ == '__main__':
 
         start_button.led_on()
 
-        # Read.
         filename = str(PARAM0.convert(counters[0].number)) + '_' + str(PARAM2.convert(counters[2].number)) + '_' + str(PARAM1.convert(counters[1].number))
         filepath = f'{PATH}/parameters/{filename}.json'
 
         if not pathlib.Path(filepath).is_file():
             window.show_message('File Error', f"The file '{filename}' does not exist.")
-
             on_shutdown()
 
         with open(filepath, 'r') as file:
             data = json.load(file)
 
-        green_zones = list(data[GREEN_ZONES].values())
-        red_zones = list(data[RED_ZONES].values())
+        global is_ampd_button_pressed
 
-        # Plot.
+        green_zones = list(data[GREEN_ZONES].values()) if is_ampd_button_pressed else list(data[GREEN_ZONES].values()) + list(data[RED_ZONES].values())
+        red_zones = list(data[RED_ZONES].values()) if is_ampd_button_pressed else []
+
         cursor = PARAM3.convert(counters[3].number)
 
         window.plot(cursor, green_zones, red_zones)
-
-        # AMPd.
-        global is_ampd_button_pressed
 
         if is_ampd_button_pressed:
 
@@ -144,8 +140,6 @@ if __name__ == '__main__':
                 if lower <= cursor <= upper:
                     warning_led.on()
 
-                    # TODO: Video of fail.
-
                     cursor = min(lower, upper, key = lambda edge : abs(edge - cursor))
 
                     window.move(cursor)
@@ -155,10 +149,30 @@ if __name__ == '__main__':
 
                     warning_led.off()
 
-                    # TODO: Video of succes.
-
                     break
-        # End.
+
+        for lower, upper in green_zones:
+            if lower <= cursor <= upper:
+                rpm_value = None
+
+                for file in glob.glob(f'{PATH}/videos/left/rot_*.gif'):
+                    words = pathlib.Path(file).stem.split('_')
+
+                    if len(words) > 1 and lower <= int(words[1]) <= upper:
+                        rpm_value = int(words[1])
+                        break
+
+                if rpm_value is None:
+                    window.show_message('File Error', "The gif files do not exist.")
+                    on_shutdown()
+
+                filenames = ['rot_' + str(rpm_value), str(rpm_value) + '_' + str(PARAM0.convert(counters[0].number))]
+                filepaths = [f'{PATH}/videos/left/{filenames[0]}.gif', f'{PATH}/videos/right/{filenames[1]}.gif']
+
+                window.play(filepaths[0], 0)
+                window.play(filepaths[1], 1)
+
+                break
 
         stop_button.resume()
 
@@ -166,9 +180,8 @@ if __name__ == '__main__':
         stop_button.stop()
 
         start_button.led_off()
-        ampd_button.led_off()
 
-        for _ in range(5):
+        for _ in range(2):
             stop_button.led_on()
             time.sleep(1)
 
@@ -179,9 +192,6 @@ if __name__ == '__main__':
 
         for counter in counters:
             counter.resume()
-
-        global is_ampd_button_pressed
-        is_ampd_button_pressed = False
 
         start_button.resume()
         ampd_button.resume()
@@ -200,13 +210,12 @@ if __name__ == '__main__':
     start_button.start(on_start)
     stop_button.start(on_stop)
     ampd_button.start(on_ampd)
-    shutdown_button.start(on_shutdown)
+    # shutdown_button.start(on_shutdown)
 
     stop_button.stop()
 
     if PATH == '':
         window.show_message('File Error', 'Path to essential files does not exist.' + '\n' + 'Check if USB is inserted.')
-
         on_shutdown()
 
     sys.exit(app.exec_())
